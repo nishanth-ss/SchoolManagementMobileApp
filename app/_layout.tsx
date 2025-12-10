@@ -75,6 +75,7 @@ export default function RootLayout() {
           <Stack.Screen name="otp" />
           <Stack.Screen name="(auth)/login" />
           <Stack.Screen name="subscription" />
+          <Stack.Screen name="faceCapture" />
         </Stack>
         <Toast />
       </SafeAreaProvider>

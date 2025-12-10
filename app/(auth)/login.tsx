@@ -24,7 +24,7 @@ export default function LoginScreen() {
     baseUrl: string;
     // Add other properties of school object if there are more
   };
-  
+
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [isSchoolSelected, setIsSchoolSelected] = useState(false);
@@ -105,11 +105,11 @@ export default function LoginScreen() {
 
       setLoading(true);
       const res = await loginUser(register_no);
-      
+
       if (res?.user) {
         await SecureStore.setItemAsync("register_no", register_no);
         await SecureStore.setItemAsync("studentId", res.user.id);
-        
+
         if (res.user.subscription === false) {
           router.replace("/subscription");
         } else {
@@ -136,6 +136,11 @@ export default function LoginScreen() {
     }
   };
 
+  const handleFaceCapture = (data: any) => {
+    console.log('Parent received:', data);
+    // Later you can send data.base64 to your backend
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -158,7 +163,7 @@ export default function LoginScreen() {
                 data={schools}
                 keyExtractor={(item) => item._id}
                 renderItem={({ item }) => (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.schoolItem}
                     onPress={() => handleSelectSchool(item)}
                   >
@@ -177,7 +182,7 @@ export default function LoginScreen() {
               <Text style={styles.selectedSchoolLabel}>Selected School:</Text>
               <Text style={styles.selectedSchoolName}>{selectedSchool?.name}</Text>
               <Text style={styles.selectedSchoolLocation}>{selectedSchool?.location}</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   setIsSchoolSelected(false);
                   setSearch('');
@@ -196,9 +201,9 @@ export default function LoginScreen() {
               autoCapitalize="none"
               keyboardType="default"
             />
-            
-            <TouchableOpacity 
-              style={[styles.button, (!register_no || loading) && styles.disabledButton]} 
+
+            <TouchableOpacity
+              style={[styles.button, (!register_no || loading) && styles.disabledButton]}
               onPress={handleLogin}
               disabled={!register_no || loading}
             >
@@ -206,6 +211,15 @@ export default function LoginScreen() {
                 {loading ? "Loading..." : "Login"}
               </Text>
             </TouchableOpacity>
+
+            <View style={{ marginTop: 20, height: 350 }}>
+              <TouchableOpacity
+                style={styles.faceIdButton}
+                onPress={() => router.replace("/faceCapture")}
+              >
+                <Text style={styles.faceIdText}>Face ID to login</Text>
+              </TouchableOpacity>
+            </View>
           </>
         )}
       </View>
@@ -346,5 +360,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontStyle: 'italic',
     padding: 15,
-  }
+  },
+  faceIdButton: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  faceIdText: {
+    fontSize: 16,
+    color: '#333',
+  },
 });
