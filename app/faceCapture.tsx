@@ -1,307 +1,288 @@
-import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import axios, { AxiosError } from "axios";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Image,
-  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
+import Toast from "react-native-toast-message";
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
-} from 'react-native-vision-camera';
-import { detectFaces } from 'react-native-vision-camera-face-detector';
+} from "react-native-vision-camera";
+import { detectFaces } from "react-native-vision-camera-face-detector";
 
-export default function FaceCaptureComponent() {
-  const device = useCameraDevice('front');
+/* ========= STRICT FACE RULES ========= */
+const TARGET_FACE_RATIO = 0.42;
+const FACE_RATIO_TOLERANCE = 0.04;
+const CENTER_TOLERANCE = 0.07;
+const MAX_YAW = 8;
+const MAX_PITCH = 8;
+const REQUIRED_STABLE_FRAMES = 3;
+/* ==================================== */
+
+export default function FaceCapture() {
+  const device = useCameraDevice("front");
   const { hasPermission, requestPermission } = useCameraPermission();
+  const { mode = "login" } = useLocalSearchParams();
 
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [capturedUri, setCapturedUri] = useState<string | null>(null);
-  const [faceDetected, setFaceDetected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [guideMessage, setGuideMessage] = useState(
+    "Place your face inside the oval"
+  );
 
   const cameraRef = useRef<Camera>(null);
-  const attemptCount = useRef(0);
-    const router = useRouter();
-  
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stableCountRef = useRef(0);
 
+  const router = useRouter();
+
+  /* ========= START CAMERA ========= */
   const startCamera = async () => {
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
-        Alert.alert('Permission Required', 'Camera access is needed');
+        Alert.alert("Permission Required", "Camera access is needed");
         return;
       }
     }
-
-    // Reset everything
-    attemptCount.current = 0;
-    setCapturedUri(null);
-    setFaceDetected(false);
+    stableCountRef.current = 0;
+    setGuideMessage("Align your face properly");
     setIsCameraActive(true);
   };
 
-  // Auto capture logic
+  /* ========= FACE VALIDATION LOOP ========= */
   useEffect(() => {
     if (!isCameraActive || !cameraRef.current) return;
 
-    const interval = setInterval(async () => {
+    intervalRef.current = setInterval(async () => {
       try {
-        const photo = await cameraRef.current!.takePhoto({ flash: 'off' });
+        const photo = await cameraRef.current!.takePhoto({ flash: "off" });
         const uri = `file://${photo.path}`;
 
         const faces = await detectFaces({ image: { uri } });
 
-        if (faces.length > 0) {
-          setFaceDetected(true);
-          setCapturedUri(uri);
-          setIsCameraActive(false); // Stop camera
-        } else {
-          attemptCount.current += 1;
-          if (attemptCount.current >= 3) {
-            setIsCameraActive(false);
-            Alert.alert('No Face Found', 'Please try again');
-          }
+        if (faces.length !== 1) {
+          stableCountRef.current = 0;
+          setGuideMessage(
+            faces.length === 0
+              ? "No face detected"
+              : "Only one face allowed"
+          );
+          return;
         }
-      } catch (error) {
-        console.log('Capture error:', error);
-      }
-    }, 2200); // Try every ~2.2 seconds
 
-    return () => clearInterval(interval);
+        const face = faces[0];
+        const { width, x } = face.bounds;
+
+        const imageWidth = photo.width;
+        const faceRatio = width / imageWidth;
+
+        const faceCenterX = x + width / 2;
+        const imageCenterX = imageWidth / 2;
+        const centerOffset =
+          Math.abs(faceCenterX - imageCenterX) / imageWidth;
+
+        const yaw = Math.abs(face.yawAngle || 0);
+        const pitch = Math.abs(face.pitchAngle || 0);
+
+        /* === VALIDATION === */
+        if (Math.abs(faceRatio - TARGET_FACE_RATIO) > FACE_RATIO_TOLERANCE) {
+          stableCountRef.current = 0;
+          setGuideMessage("Move closer or farther to fit the oval");
+          return;
+        }
+
+        if (centerOffset > CENTER_TOLERANCE) {
+          stableCountRef.current = 0;
+          setGuideMessage("Center your face inside the oval");
+          return;
+        }
+
+        if (yaw > MAX_YAW || pitch > MAX_PITCH) {
+          stableCountRef.current = 0;
+          setGuideMessage("Look straight at the camera");
+          return;
+        }
+
+        /* === STABLE FRAME === */
+        stableCountRef.current += 1;
+        setGuideMessage("Perfect! Hold still...");
+
+        if (stableCountRef.current >= REQUIRED_STABLE_FRAMES) {
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+          setIsCameraActive(false);
+          uploadFace(uri);
+        }
+      } catch (e) {
+        console.log("FACE ERROR:", e);
+      }
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [isCameraActive]);
 
-  // Manual capture (optional)
-  const manualCapture = async () => {
-    if (!cameraRef.current) return;
-    const photo = await cameraRef.current.takePhoto({ flash: 'off' });
-    const uri = `file://${photo.path}`;
-    const faces = await detectFaces({ image: { uri } });
-    setFaceDetected(faces.length > 0);
-    setCapturedUri(uri);
-    setIsCameraActive(false);
+  /* ========= UPLOAD ========= */
+  const uploadFace = async (uri: string) => {
+    try {
+      setLoading(true);
+
+      const studentId = await SecureStore.getItemAsync("studentId");
+      const baseUrl = await SecureStore.getItemAsync("baseUrl");
+
+      if (!baseUrl) {
+        Alert.alert("Error", "Missing configuration");
+        return;
+      }
+
+      const endpoint =
+        mode === "register"
+          ? "/face/register-face"
+          : "/face/login-face";
+
+      const formData = new FormData();
+      if (studentId) formData.append("userId", studentId);
+
+      formData.append("face", {
+        uri,
+        name: "face.jpg",
+        type: "image/jpeg",
+      } as any);
+
+      const res: any = await axios.post(`${baseUrl}${endpoint}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const data = res.data;
+      if (data.status) {
+        if (mode === "register") {
+          Toast.show({
+            type: "success",
+            text1: "Success",
+            text2: data.success || "Face registered successfully.",
+            position: "bottom",
+          });
+          router.replace("/profile");
+        } else {
+          await SecureStore.setItemAsync("register_no", data.user.username);
+          await SecureStore.setItemAsync("studentId", data.user.id);
+          await SecureStore.setItemAsync("authToken", data.token);
+          await SecureStore.setItemAsync(
+            "subscription",
+            data.user.subscription ? "true" : "false"
+          );
+
+
+          Toast.show({
+            type: "success",
+            text1: "Login Successful",
+            position: "bottom"
+          });
+
+          if (!data.user.subscription) {
+            router.replace("/subscription");
+          } else {
+            router.replace("/(tabs)/profile");
+          }
+        }
+      } else {
+        Toast.show({
+          type: "error",
+          text1: data.message || "Face look like not in right position try again",
+          position: "bottom"
+        })
+        startCamera();
+      }
+    } catch (error) {
+       const err = error as AxiosError<any>;
+      const message =
+        err?.response?.data?.message || "Server error, try again";
+
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: message,
+        position: "bottom",
+      });
+      startCamera();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Permission screen
-  if (!hasPermission) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Camera Access Required</Text>
-        <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText} onPress={Linking.openSettings}>Allow Camera</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (!device) {
-    return <Text style={styles.title}>No Front Camera Found</Text>;
-  }
+  if (!device || !hasPermission) return null;
 
   return (
     <View style={styles.container}>
-
-      {/* 1. START SCREEN */}
-      {!isCameraActive && !capturedUri && (
-        <View style={styles.startScreen}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => router.replace('/(auth)/login')}
-          >
-            <Text style={styles.backButtonText}>← Back to Login</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Face Verification</Text>
-          <Text style={styles.subtitle}>We need to capture your face</Text>
-          <TouchableOpacity style={styles.startButton} onPress={startCamera}>
-            <Text style={styles.startButtonText}>Start Camera</Text>
+      {!isCameraActive && !loading && (
+        <View style={styles.center}>
+          <Text style={styles.title}>
+            {mode === "register" ? "Register Face ID" : "Face Login"}
+          </Text>
+          <TouchableOpacity onPress={startCamera} style={styles.button}>
+            <Text style={styles.buttonText}>Start Camera</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* 2. LIVE CAMERA (Mirror + No Black Screen) */}
       {isCameraActive && (
         <>
-          <View style={styles.cameraContainer}>
-            <Camera
-              ref={cameraRef}
-              style={StyleSheet.absoluteFill}
-              device={device}
-              isActive={true}
-              photo={true}
-            />
+          <Camera
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive
+            photo
+          />
+          <View style={styles.overlay}>
+            <View style={styles.oval} />
+            <Text style={styles.guide}>{guideMessage}</Text>
           </View>
-
-          {/* Face Guide */}
-          <View style={styles.faceGuide}>
-            <View style={styles.faceOval} />
-            <Text style={styles.guideText}>Position your face inside the oval</Text>
-          </View>
-
-          {/* Optional: Manual button */}
-          <TouchableOpacity style={styles.captureBtn} onPress={manualCapture}>
-            <Text style={styles.buttonText}>Capture Now</Text>
-          </TouchableOpacity>
         </>
       )}
 
-      {/* 3. RESULT SCREEN */}
-      {capturedUri && (
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultTitle}>
-            {faceDetected ? 'Face Captured Successfully' : 'No Face Detected'}
-          </Text>
-          <Image
-            source={{ uri: capturedUri }}
-            style={styles.resultImage}
-            resizeMode="contain"
-          />
-          <TouchableOpacity style={styles.retryButton} onPress={startCamera}>
-            <Text style={styles.buttonText}>Retake Photo</Text>
-          </TouchableOpacity>
+      {loading && (
+        <View style={styles.center}>
+          <Text style={styles.title}>Uploading...</Text>
         </View>
       )}
     </View>
   );
 }
 
-// PERFECT STYLES – NEVER CHANGE THESE
+/* ========= STYLES ========= */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-    opacity: 0.8,
-  },
-  startScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#aaa',
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  startButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 18,
-    paddingHorizontal: 50,
+  container: { flex: 1, backgroundColor: "#000" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  title: { color: "#fff", fontSize: 24, marginBottom: 20 },
+  button: {
+    backgroundColor: "#007AFF",
+    padding: 16,
     borderRadius: 30,
   },
-  startButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    padding: 10,
-    zIndex: 10,
-  },
-  backButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // CAMERA WITH MIRROR (NO BLACK SCREEN)
-  cameraContainer: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: 'black',
-    overflow: 'hidden',
-    transform: [{ scaleX: -1 }],   // This is the magic mirror
-  },
-
-  faceGuide: {
-    position: 'absolute',
-    top: 80,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    pointerEvents: 'none',
-  },
-  faceOval: {
+  buttonText: { color: "#fff", fontSize: 18 },
+  overlay: { position: "absolute", top: 80, alignItems: "center", width: "100%" },
+  oval: {
     width: 240,
     height: 320,
     borderRadius: 120,
     borderWidth: 4,
-    borderColor: 'rgba(0, 200, 255, 0.7)',
-    borderStyle: 'dashed',
+    borderColor: "rgba(0,200,255,0.8)",
+    borderStyle: "dashed",
   },
-  guideText: {
+  guide: {
     marginTop: 20,
-    color: 'white',
-    fontSize: 17,
-    fontWeight: '600',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-  },
-  captureBtn: {
-    position: 'absolute',
-    bottom: 90,
-    alignSelf: 'center',
-    backgroundColor: '#FF3B30',
-    paddingVertical: 18,
-    paddingHorizontal: 40,
-    borderRadius: 50,
-  },
-
-  // RESULT SCREEN
-  resultContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  resultTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  resultImage: {
-    width: '90%',
-    height: '65%',
+    color: "#fff",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    padding: 10,
     borderRadius: 20,
-    backgroundColor: '#222',
-    transform: [{ scaleX: -1 }],   // Mirror the captured photo too
   },
-  retryButton: {
-    marginTop: 30,
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    paddingHorizontal: 50,
-    borderRadius: 30,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  button: {
-    backgroundColor: '#40407a',
-    padding: 18,
-    borderRadius: 12,
-    minWidth: 200,
-    alignItems: 'center',
-  }
 });

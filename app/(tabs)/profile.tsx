@@ -1,15 +1,18 @@
 import { getStudentProfile } from "@/services/studentProfile";
 import { BASE_URL } from "@/utils/config";
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { ScanFace } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -17,6 +20,7 @@ import Toast from "react-native-toast-message";
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const router = useRouter();
 
   const fetchProfileData = useCallback(async () => {
     try {
@@ -58,7 +62,7 @@ export default function HomeScreen() {
       }
 
       const res = await getStudentProfile(regNo || "");
-      
+
       // ✅ Guard for empty or undefined response
       if (res && res.data) {
         setData(res.data);
@@ -104,7 +108,7 @@ export default function HomeScreen() {
       : require("../../assets/images/react-logo.png");
 
   return (
-<SafeAreaView style={[styles.container, { flex: 1 }]} edges={[]}>
+    <SafeAreaView style={[styles.container, { flex: 1 }]} edges={[]}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           {/* 🖼 Profile header with image */}
@@ -142,6 +146,16 @@ export default function HomeScreen() {
             <Text style={styles.subtitle}>Location</Text>
             <Text>Location Name: {data.location_id?.locationName}</Text>
           </View> */}
+        </View>
+        <View style={styles.faceIdContainer}>
+          <Text style={styles.faceIdInfo}>If you don't have a face ID, please register it</Text>
+          <TouchableOpacity
+            style={styles.faceIdButton}
+          onPress={() => router.push("/faceCapture?mode=register")}
+          >
+            <ScanFace size={24} color="#40407a" />
+            <Text style={styles.faceIdText}>Register Face ID</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -205,4 +219,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
+  faceIdInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+  },
+  faceIdButton: {
+    marginTop: 5,
+    padding: 15,
+    backgroundColor: 'rgba(64, 64, 122, 0.2)',
+    borderRadius: 8,
+    alignItems: 'center',
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    borderColor: '#40407a',
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  faceIdText: {
+    fontSize: 16,
+    color: '#40407a',
+  },
+  faceIdContainer:{
+    paddingTop: 10,
+    paddingHorizontal: 20,
+  }
 });

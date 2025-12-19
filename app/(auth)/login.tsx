@@ -2,6 +2,7 @@ import { loadBaseUrl, setBaseUrl } from "@/api/apiConfig";
 import { loginUser, searchLocation } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from 'expo-secure-store';
+import { ScanFace } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -56,7 +57,6 @@ export default function LoginScreen() {
           setSchools([]);
         }
       } catch (err) {
-        console.error("Search error:", err);
         setSchools([]);
       }
     }, 500),
@@ -116,6 +116,8 @@ export default function LoginScreen() {
           router.replace("/otp");
         }
       } else {
+        console.log("res",res);
+        
         Toast.show({
           type: "error",
           text1: "Login Failed",
@@ -124,7 +126,6 @@ export default function LoginScreen() {
         });
       }
     } catch (error) {
-      console.error('Login error:', error);
       Toast.show({
         type: "error",
         text1: "Error",
@@ -134,11 +135,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFaceCapture = (data: any) => {
-    console.log('Parent received:', data);
-    // Later you can send data.base64 to your backend
   };
 
   return (
@@ -212,11 +208,13 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <View style={{ marginTop: 20, height: 350 }}>
+            <View style={{ marginTop: 20, height: 250 }}>
+              <Text style={styles.faceIdInfo}>If you already have a face ID, please login using it</Text>
               <TouchableOpacity
                 style={styles.faceIdButton}
-                onPress={() => router.replace("/faceCapture")}
+                onPress={() => router.push("/faceCapture")}
               >
+                <ScanFace size={24} color="#40407a" />
                 <Text style={styles.faceIdText}>Face ID to login</Text>
               </TouchableOpacity>
             </View>
@@ -362,14 +360,26 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   faceIdButton: {
-    marginTop: 20,
+    marginTop: 5,
     padding: 15,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(64, 64, 122, 0.2)',
     borderRadius: 8,
     alignItems: 'center',
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    borderColor: '#40407a',
+    borderWidth: 1,
+    marginBottom: 10,
   },
   faceIdText: {
     fontSize: 16,
-    color: '#333',
+    color: '#40407a',
+  },
+  faceIdInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
   },
 });
