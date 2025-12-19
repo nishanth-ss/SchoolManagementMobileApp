@@ -33,7 +33,9 @@
     "extra": {
       "eas": {
         "projectId": "4799c87e-d90f-45a0-b863-e1e25261342e"
-      }
+      },
+      "apiUrl": "https://schoolglobalserver-agsoft.onrender.com",
+      "razorpayKeyId": "rzp_live_Rt5vLcnxGaTs8Y"
     }
   }
 }

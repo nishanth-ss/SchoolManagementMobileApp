@@ -1,4 +1,5 @@
 import axios from "axios";
+import Constants from 'expo-constants';
 import { request } from "../api/api";
 
 export const loginUser = async (register_no) => {
@@ -17,7 +18,8 @@ export const loginWithOtp = async (register_no, otp) => {
   }
 };
 
-const LOCATION_API = "https://eduhost.onrender.com/api/location";
+const API_BASE_URL = Constants.expoConfig.extra.apiUrl || 'https://schoolglobalserver-agsoft.onrender.com';
+const LOCATION_API = `${API_BASE_URL}/api/location`;
 
 export const searchLocation = async (query) => {
   try {

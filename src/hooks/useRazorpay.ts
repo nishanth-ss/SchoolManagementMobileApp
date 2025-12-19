@@ -15,7 +15,7 @@ export const useRazorpay = () => {
       const { order } = await createOrder(studentId, amount, subscription);
 
       const options = {
-        key: "rzp_test_qXH0h7SCch7OVM",
+        key: "rzp_live_Rt5vLcnxGaTs8Y",
         amount: order.amount,
         currency: order.currency ?? "INR",
         name: "Student Wallet",

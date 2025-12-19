@@ -3,7 +3,6 @@ import { BASE_URL } from "@/utils/config";
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { ScanFace } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -147,7 +145,7 @@ export default function HomeScreen() {
             <Text>Location Name: {data.location_id?.locationName}</Text>
           </View> */}
         </View>
-        <View style={styles.faceIdContainer}>
+        {/* <View style={styles.faceIdContainer}>
           <Text style={styles.faceIdInfo}>If you don't have a face ID, please register it</Text>
           <TouchableOpacity
             style={styles.faceIdButton}
@@ -156,7 +154,7 @@ export default function HomeScreen() {
             <ScanFace size={24} color="#40407a" />
             <Text style={styles.faceIdText}>Register Face ID</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
       </ScrollView>
     </SafeAreaView>
   );

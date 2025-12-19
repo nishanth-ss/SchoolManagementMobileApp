@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const LOCATION_API = "https://eduhost.onrender.com/api/location";
+const LOCATION_API = "https://schoolglobalserver-agsoft.onrender.com/api/location";
 
 export const searchLocation = async (query) => {
   try {

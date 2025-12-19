@@ -2,7 +2,6 @@ import { loadBaseUrl, setBaseUrl } from "@/api/apiConfig";
 import { loginUser, searchLocation } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from 'expo-secure-store';
-import { ScanFace } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
@@ -208,7 +207,7 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <View style={{ marginTop: 20, height: 250 }}>
+            {/* <View style={{ marginTop: 20, height: 250 }}>
               <Text style={styles.faceIdInfo}>If you already have a face ID, please login using it</Text>
               <TouchableOpacity
                 style={styles.faceIdButton}
@@ -217,7 +216,7 @@ export default function LoginScreen() {
                 <ScanFace size={24} color="#40407a" />
                 <Text style={styles.faceIdText}>Face ID to login</Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
           </>
         )}
       </View>
