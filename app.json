@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "School Management",
-    "slug": "school_management_mobile_app2",
+    "slug": "schoolmanagementmobileapp",
+    
     "plugins": [
       [
         "expo-build-properties",
@@ -32,7 +33,7 @@
     "runtimeVersion": "1.0.0",
     "extra": {
       "eas": {
-        "projectId": "4799c87e-d90f-45a0-b863-e1e25261342e"
+        "projectId": "c4165589-4248-4155-9ec0-8c6bc8c958fe"
       },
       "apiUrl": "https://schoolglobalserver-agsoft.onrender.com",
       "razorpayKeyId": "rzp_live_Rt5vLcnxGaTs8Y"

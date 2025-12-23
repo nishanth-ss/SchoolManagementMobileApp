@@ -22,6 +22,7 @@ export default function LoginScreen() {
     name: string;
     location: string;
     baseUrl: string;
+    amount: number;
     // Add other properties of school object if there are more
   };
 
@@ -76,6 +77,7 @@ export default function LoginScreen() {
     try {
       await setBaseUrl(baseUrl);
       await SecureStore.setItemAsync("baseUrl", baseUrl);
+      await SecureStore.setItemAsync("subscriptionAmount", String(school.amount));
       setSelectedSchool(school);
       setSearch(school.name);
       setSchools([]);
@@ -190,7 +192,7 @@ export default function LoginScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Enter your register number"
+              placeholder="Enter student registered roll number"
               value={register_no}
               onChangeText={setRegisterNo}
               autoCapitalize="none"

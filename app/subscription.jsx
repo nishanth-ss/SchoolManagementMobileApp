@@ -3,7 +3,7 @@ import { useRazorpay } from "@/hooks/useRazorpay";
 import { loginUser } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -12,14 +12,32 @@ export default function SubscriptionScreen() {
   const router = useRouter();
   const { startPayment } = useRazorpay();
   const [loading, setLoading] = useState(false);
+  const [subscriptionAmount, setSubscriptionAmount] = useState(null);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+    const loadSubscriptionAmount = async () => {
+      try {
+        const amount = await SecureStore.getItemAsync("subscriptionAmount");
+        setSubscriptionAmount(amount);
+      } catch (err) {
+        console.error('Error loading subscription amount:', err);
+        setError('Failed to load subscription amount');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSubscriptionAmount();
+  }, []);
 
   const handleSubscribe = async () => {
     setLoading(true);
     try {
       const studentId = await SecureStore.getItem("studentId");
-      const amount = 100; // ₹100 → 10000 paise
+      const amount = subscriptionAmount; 
 
-      const ok = await startPayment(studentId, amount,true);
+      const ok = await startPayment(studentId, amount, true);
       setLoading(false);
 
       if (ok) {
@@ -88,7 +106,7 @@ export default function SubscriptionScreen() {
         </Text>
 
         <View style={styles.priceBox}>
-          <Text style={styles.priceText}>₹100 / Year</Text>
+          <Text style={styles.priceText}>₹{subscriptionAmount} / Year</Text>
         </View>
 
         <TouchableOpacity
