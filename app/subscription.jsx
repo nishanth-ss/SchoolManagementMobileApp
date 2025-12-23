@@ -16,7 +16,7 @@ export default function SubscriptionScreen() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
+  useEffect(() => {
     const loadSubscriptionAmount = async () => {
       try {
         const amount = await SecureStore.getItemAsync("subscriptionAmount");
@@ -35,7 +35,7 @@ export default function SubscriptionScreen() {
     setLoading(true);
     try {
       const studentId = await SecureStore.getItem("studentId");
-      const amount = subscriptionAmount; 
+      const amount = subscriptionAmount;
 
       const ok = await startPayment(studentId, amount, true);
       setLoading(false);
@@ -106,13 +106,13 @@ export default function SubscriptionScreen() {
         </Text>
 
         <View style={styles.priceBox}>
-          <Text style={styles.priceText}>₹{subscriptionAmount} / Year</Text>
+          <Text style={subscriptionAmount ? styles.priceText : priceTextInactive}>₹{subscriptionAmount || 0} / Year</Text>
         </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleSubscribe}
-          disabled={loading}
+          disabled={loading || !subscriptionAmount}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -171,6 +171,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#40407a",
+  },
+   priceTextInactive: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
   },
   button: {
     backgroundColor: "#40407a",
