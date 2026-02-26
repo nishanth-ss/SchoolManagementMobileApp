@@ -1,9 +1,11 @@
 // src/hooks/useRazorpay.ts
+import { useI18n } from "@/i18n/I18nProvider";
 import RazorpayCheckout from "react-native-razorpay"; // Correct import
 import Toast from "react-native-toast-message";
 import { createOrder, verifyPayment } from "../services/paymentService";
 
 export const useRazorpay = () => {
+  const { t } = useI18n();
   const startPayment = async (studentId: string, amount: number, subscription?: boolean) => {
     try {
       // 1. First verify Razorpay is available
@@ -26,8 +28,8 @@ export const useRazorpay = () => {
           ondismiss: () => {
             Toast.show({
               type: 'info',
-              text1: 'Payment Cancelled',
-              text2: 'Payment was cancelled',
+              text1: t("payment_cancelled"),
+              text2: t("payment_was_cancelled"),
               position: 'bottom',
             });
           } 
@@ -49,8 +51,8 @@ export const useRazorpay = () => {
 
         Toast.show({ 
           type: "success", 
-          text1: "Success", 
-          text2: subscription ? "Subscription successful!" : "Payment successful!" 
+          text1: t("success"), 
+          text2: subscription ? t("subscription_successful") : t("payment_successful")
         });
         return true;
       } catch (error: any) {
@@ -62,7 +64,7 @@ export const useRazorpay = () => {
         
         const errorMessage = error.description || 
                            error.error?.description || 
-                           "Payment failed. Please try again.";
+                           t("payment_failed_try_again");
         
         throw new Error(errorMessage);
       }
@@ -71,8 +73,8 @@ export const useRazorpay = () => {
       // Show error toast
       Toast.show({
         type: "error",
-        text1: "Payment Failed",
-        text2: error.message || "An error occurred during payment. Please try again.",
+        text1: t("payment_failed"),
+        text2: error.message || t("payment_error_try_again"),
         position: 'bottom',
         visibilityTime: 4000,
       });

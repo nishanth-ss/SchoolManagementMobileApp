@@ -1,19 +1,14 @@
+import { useI18n } from "@/i18n/I18nProvider";
 import { getStudentTransactions } from "@/services/studentProfile";
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from "@react-navigation/native";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
-import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
-} from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 export default function TransactionsScreen() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
@@ -22,102 +17,95 @@ export default function TransactionsScreen() {
     totalPages: 1,
   });
 
-  const fetchTransactions = useCallback(async (page: number) => {
-    try {
-      setLoading(true);
-      const regNo = await SecureStore.getItemAsync("register_no");
-      if (!regNo) {
+  const fetchTransactions = useCallback(
+    async (page: number) => {
+      try {
+        setLoading(true);
+        const regNo = await SecureStore.getItemAsync("register_no");
+        if (!regNo) {
+          setLoading(false);
+          return;
+        }
+        const res = await getStudentTransactions(regNo, page, pagination.pageSize);
+        setData(res.transactions || []);
+        setPagination((prev) => ({
+          ...prev,
+          page,
+          totalPages: res.totalPages || Math.ceil((res.totalItems || 0) / pagination.pageSize) || 1,
+        }));
+      } catch (err) {
+        Toast.show({
+          type: "error",
+          text1: t("error"),
+          text2: t("failed_fetch_transactions"),
+          position: "bottom",
+        });
+      } finally {
         setLoading(false);
-        return;
       }
-      const res = await getStudentTransactions(regNo, page, pagination.pageSize);
-      setData(res.transactions || []);
-      setPagination((prev) => ({
-        ...prev,
-        page: page,
-        totalPages: res.totalPages || Math.ceil((res.totalItems || 0) / pagination.pageSize) || 1,
-      }));
-    } catch (err) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "Failed to fetch transactions. Please try again.",
-        position: "bottom",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.pageSize]);
+    },
+    [pagination.pageSize, t]
+  );
 
-  // Fetch data when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       fetchTransactions(1);
     }, [fetchTransactions])
   );
 
-  // 🔁 Re-fetch data whenever page changes
   useEffect(() => {
     fetchTransactions(pagination.page);
-  }, [pagination.page]);
+  }, [pagination.page, fetchTransactions]);
 
   const renderItem = ({ item }: any) => {
-    const date =
-      item.createdAtFormatted ||
-      new Date(item.createdAt).toLocaleString();
+    const date = item.createdAtFormatted || new Date(item.createdAt).toLocaleString();
     const amount = item.totalAmount || item.depositAmount || 0;
-    const source = item.source || "N/A";
-    const status = item.status || (item.is_reversed ? "Reversed" : "Completed");
+    const source = item.source || t("na");
+    const statusRaw = String(item.status || (item.is_reversed ? "Reversed" : "Completed"));
+    const isCompleted = statusRaw.toLowerCase() === "completed";
+    const status = isCompleted ? t("completed") : t("reversed");
     const hasProducts = item.products && item.products.length > 0;
 
     return (
       <View style={styles.card}>
         <View style={styles.row}>
-          <Text style={styles.label}>Date:</Text>
+          <Text style={styles.label}>{t("date")}:</Text>
           <Text style={styles.value}>{date}</Text>
         </View>
-        
+
         {hasProducts ? (
           <View style={styles.productsContainer}>
-            <Text style={[styles.label, { marginBottom: 5 }]}>Products:</Text>
+            <Text style={[styles.label, { marginBottom: 5 }]}>{t("products")}:</Text>
             {item.products.map((product: any, index: number) => {
-              // Get product details from productId object or use direct properties as fallback
-              const productName = product.productId?.itemName || product.itemName || 'Product';
+              const productName = product.productId?.itemName || product.itemName || t("product");
               const productPrice = product.productId?.price || product.price || 0;
               const quantity = product.quantity || 1;
-              
+
               return (
                 <View key={index} style={styles.productItem}>
                   <Text style={styles.productName}>
-                    {productName} 
-                    <Text style={styles.productQuantity}> × {quantity}</Text>
+                    {productName}
+                    <Text style={styles.productQuantity}> x {quantity}</Text>
                   </Text>
-                  <Text style={styles.productPrice}>
-                    ₹{(productPrice * quantity).toFixed(2)}
-                  </Text>
+                  <Text style={styles.productPrice}>₹{(productPrice * quantity).toFixed(2)}</Text>
                 </View>
               );
             })}
           </View>
         ) : null}
-        
+
         <View style={styles.row}>
-          <Text style={styles.label}>Total Amount:</Text>
+          <Text style={styles.label}>{t("total_amount")}:</Text>
           <Text style={[styles.value, styles.totalAmount]}>₹{amount.toFixed(2)}</Text>
         </View>
-        
+
         <View style={styles.row}>
-          <Text style={styles.label}>Source:</Text>
+          <Text style={styles.label}>{t("source")}:</Text>
           <Text style={styles.value}>{source}</Text>
         </View>
-        
+
         <View style={styles.row}>
-          <Text
-            style={[
-              styles.status,
-              status === "Completed" ? styles.paid : styles.pending,
-            ]}
-          >
+          <Text style={[styles.status, isCompleted ? styles.paid : styles.pending]}>
             {status}
           </Text>
         </View>
@@ -127,9 +115,9 @@ export default function TransactionsScreen() {
 
   if (loading) {
     return (
-    <SafeAreaView style={[styles.container, { flex: 1 }]} edges={[]}>
+      <SafeAreaView style={[styles.container, { flex: 1 }]} edges={[]}>
         <ActivityIndicator size="large" color="#40407a" />
-        <Text>Loading student transactions...</Text>
+        <Text>{t("loading_transactions")}</Text>
       </SafeAreaView>
     );
   }
@@ -137,7 +125,7 @@ export default function TransactionsScreen() {
   if (!data || data.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={{ color: "red" }}>No transactions found</Text>
+        <Text style={{ color: "red" }}>{t("no_transactions_found")}</Text>
       </SafeAreaView>
     );
   }
@@ -151,7 +139,6 @@ export default function TransactionsScreen() {
         contentContainerStyle={{ paddingBottom: 30 }}
       />
 
-      {/* ✅ Pagination Controls */}
       <View style={styles.pagination}>
         <TouchableOpacity
           onPress={() =>
@@ -161,16 +148,13 @@ export default function TransactionsScreen() {
             }))
           }
           disabled={pagination.page === 1}
-          style={[
-            styles.pageButton,
-            pagination.page === 1 && styles.disabledButton,
-          ]}
+          style={[styles.pageButton, pagination.page === 1 && styles.disabledButton]}
         >
-          <Text style={styles.pageText}>Prev</Text>
+          <Text style={styles.pageText}>{t("prev")}</Text>
         </TouchableOpacity>
 
         <Text style={styles.pageIndicator}>
-          Page {pagination.page} of {pagination.totalPages}
+          {t("page_of", { page: pagination.page, totalPages: pagination.totalPages })}
         </Text>
 
         <TouchableOpacity
@@ -181,12 +165,9 @@ export default function TransactionsScreen() {
             }))
           }
           disabled={pagination.page === pagination.totalPages}
-          style={[
-            styles.pageButton,
-            pagination.page === pagination.totalPages && styles.disabledButton,
-          ]}
+          style={[styles.pageButton, pagination.page === pagination.totalPages && styles.disabledButton]}
         >
-          <Text style={styles.pageText}>Next</Text>
+          <Text style={styles.pageText}>{t("next")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -216,30 +197,30 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   productItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginVertical: 4,
     paddingHorizontal: 8,
   },
   productName: {
     flex: 1,
-    color: '#333',
-    fontWeight: '500',
+    color: "#333",
+    fontWeight: "500",
   },
   productQuantity: {
-    color: '#666',
+    color: "#666",
     fontSize: 13,
   },
   productPrice: {
-    color: '#2196F3',
-    fontWeight: '600',
+    color: "#2196F3",
+    fontWeight: "600",
   },
   totalAmount: {
-    color: '#2196F3',
-    fontWeight: 'bold',
+    color: "#2196F3",
+    fontWeight: "bold",
     fontSize: 15,
   },
   row: {
@@ -273,7 +254,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    // paddingVertical: 10,
   },
   pageButton: {
     backgroundColor: "#40407a",

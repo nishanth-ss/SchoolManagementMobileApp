@@ -1,4 +1,6 @@
 import { loadBaseUrl, setBaseUrl } from "@/api/apiConfig";
+import LanguagePicker from "@/components/LanguagePicker";
+import { useI18n } from "@/i18n/I18nProvider";
 import { loginUser, searchLocation } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -31,6 +33,7 @@ function debounce<F extends (...args: any[]) => any>(func: F, delay: number) {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useI18n();
 
   const [register_no, setRegisterNo] = useState("");
   const [search, setSearch] = useState("");
@@ -96,8 +99,8 @@ export default function LoginScreen() {
     if (!baseUrl) {
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2: "School base URL is missing.",
+        text1: t("error"),
+        text2: t("school_url_missing"),
         position: "bottom",
       });
       return;
@@ -121,8 +124,8 @@ export default function LoginScreen() {
     } catch (error) {
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2: "Failed to set school URL. Please try again.",
+        text1: t("error"),
+        text2: t("failed_set_school_url"),
         position: "bottom",
       });
     }
@@ -135,8 +138,8 @@ export default function LoginScreen() {
       if (!selectedSchool) {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Please select a school first",
+          text1: t("error"),
+          text2: t("select_school_first"),
           position: "bottom",
         });
         return;
@@ -145,8 +148,8 @@ export default function LoginScreen() {
       if (!reg) {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Please enter registration number",
+          text1: t("error"),
+          text2: t("enter_registration_number"),
           position: "bottom",
         });
         return;
@@ -161,8 +164,8 @@ export default function LoginScreen() {
       if (!user) {
         Toast.show({
           type: "error",
-          text1: "Login Failed",
-          text2: res?.message || "Invalid credentials or server error",
+          text1: t("login_failed"),
+          text2: res?.message || t("invalid_credentials"),
           position: "bottom",
         });
         return;
@@ -173,8 +176,8 @@ export default function LoginScreen() {
       if (!studentId) {
         Toast.show({
           type: "error",
-          text1: "Login Failed",
-          text2: "Student ID missing in response. Please contact support.",
+          text1: t("login_failed"),
+          text2: t("student_id_missing"),
           position: "bottom",
         });
         return;
@@ -197,11 +200,11 @@ export default function LoginScreen() {
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "Error",
+        text1: t("error"),
         text2:
           error?.response?.data?.message ||
           error?.message ||
-          "Something went wrong. Please try again later.",
+          t("something_wrong_try_later"),
         position: "bottom",
       });
     } finally {
@@ -213,15 +216,16 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.innerContainer}>
-        <Text style={styles.title}>Welcome to School Management</Text>
+        <LanguagePicker />
+        <Text style={styles.title}>{t("welcome_school")}</Text>
 
         {!isSchoolSelected ? (
           <>
-            <Text style={styles.subtitle}>Select your school to continue</Text>
+            <Text style={styles.subtitle}>{t("select_school_continue")}</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Search school name"
+              placeholder={t("search_school_name")}
               value={search}
               onChangeText={handleSearch}
               autoCapitalize="words"
@@ -243,13 +247,13 @@ export default function LoginScreen() {
                 )}
               />
             ) : search.trim().length >= 2 ? (
-              <Text style={styles.noResults}>No schools found</Text>
+              <Text style={styles.noResults}>{t("no_schools_found")}</Text>
             ) : null}
           </>
         ) : (
           <>
             <View style={styles.selectedSchoolContainer}>
-              <Text style={styles.selectedSchoolLabel}>Selected School:</Text>
+              <Text style={styles.selectedSchoolLabel}>{t("selected_school")}</Text>
               <Text style={styles.selectedSchoolName}>{selectedSchool?.name}</Text>
               <Text style={styles.selectedSchoolLocation}>
                 {selectedSchool?.location}
@@ -264,13 +268,13 @@ export default function LoginScreen() {
                 }}
                 style={styles.changeSchoolButton}
               >
-                <Text style={styles.changeSchoolText}>Change School</Text>
+                <Text style={styles.changeSchoolText}>{t("change_school")}</Text>
               </TouchableOpacity>
             </View>
 
             <TextInput
               style={styles.input}
-              placeholder="Enter student registered roll number"
+              placeholder={t("enter_roll_number")}
               value={register_no}
               onChangeText={setRegisterNo}
               autoCapitalize="none"
@@ -283,7 +287,7 @@ export default function LoginScreen() {
               disabled={!register_no.trim() || loading}
             >
               <Text style={styles.buttonText}>
-                {loading ? "Loading..." : "Login"}
+                {loading ? t("loading") : t("login")}
               </Text>
             </TouchableOpacity>
           </>

@@ -12,16 +12,18 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { Text, View } from 'react-native';
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { I18nProvider, useI18n } from "@/i18n/I18nProvider";
 
 // Rest of your file remains the same...
 
 // Error boundary fallback component
 function ErrorFallback({ error }: { error: Error }) {
+  const { t } = useI18n();
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-      <Text style={{ fontSize: 18, marginBottom: 10, fontWeight: 'bold' }}>Something went wrong</Text>
+      <Text style={{ fontSize: 18, marginBottom: 10, fontWeight: 'bold' }}>{t("app_error_title")}</Text>
       <Text style={{ color: 'red', marginBottom: 10 }}>{error.message}</Text>
-      <Text>Please restart the app or contact support if the problem persists.</Text>
+      <Text>{t("app_error_hint")}</Text>
     </View>
   );
 }
@@ -67,18 +69,20 @@ export default function RootLayout() {
   // }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <SafeAreaProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="otp" />
-          <Stack.Screen name="(auth)/login" />
-          <Stack.Screen name="subscription" />
-          <Stack.Screen name="faceCapture" />
-        </Stack>
-        <Toast />
-      </SafeAreaProvider>
-    </ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <SafeAreaProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="otp" />
+            <Stack.Screen name="(auth)/login" />
+            <Stack.Screen name="subscription" />
+            <Stack.Screen name="faceCapture" />
+          </Stack>
+          <Toast />
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    </I18nProvider>
   );
 }

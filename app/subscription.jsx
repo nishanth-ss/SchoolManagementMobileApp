@@ -1,22 +1,17 @@
-// app/(tabs)/subscription.tsx
 import { useRazorpay } from "@/hooks/useRazorpay";
+import { useI18n } from "@/i18n/I18nProvider";
 import { loginUser } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 export default function SubscriptionScreen() {
   const router = useRouter();
   const { startPayment } = useRazorpay();
+  const { t } = useI18n();
 
   const [loading, setLoading] = useState(false);
   const [subscriptionAmount, setSubscriptionAmount] = useState(null);
@@ -31,8 +26,8 @@ export default function SubscriptionScreen() {
         console.error("Error loading subscription amount:", err);
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Failed to load subscription amount",
+          text1: t("error"),
+          text2: t("failed_load_subscription_amount"),
           position: "bottom",
         });
       } finally {
@@ -41,15 +36,11 @@ export default function SubscriptionScreen() {
     };
 
     loadSubscriptionAmount();
-  }, []);
+  }, [t]);
 
-  // ✅ make sure amount is valid number
   const amountNumber = useMemo(() => {
     const raw = subscriptionAmount;
-
-    if (!raw) return 0;
-    if (raw === "undefined" || raw === "null") return 0;
-
+    if (!raw || raw === "undefined" || raw === "null") return 0;
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : 0;
   }, [subscriptionAmount]);
@@ -64,41 +55,40 @@ export default function SubscriptionScreen() {
       if (!studentId) {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Student ID not found. Please login again.",
+          text1: t("error"),
+          text2: t("student_id_not_found_login_again"),
           position: "bottom",
         });
-        router.replace("/login");
+        router.replace("/(auth)/login");
         return;
       }
 
       if (!canPay) {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Subscription amount not available.",
+          text1: t("error"),
+          text2: t("subscription_amount_not_available"),
           position: "bottom",
         });
         return;
       }
 
-      const ok = await startPayment(studentId, (amountNumber), true);
-
+      const ok = await startPayment(studentId, amountNumber, true);
       if (ok) {
         await updateSubscriptionStatus();
       } else {
         Toast.show({
           type: "error",
-          text1: "Payment Failed",
-          text2: "There was an issue with your payment. Please try again.",
+          text1: t("payment_failed"),
+          text2: t("payment_issue_try_again"),
           position: "bottom",
         });
       }
     } catch (error) {
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2: "An error occurred during payment. Please try again.",
+        text1: t("error"),
+        text2: t("payment_error_try_again"),
         position: "bottom",
       });
     } finally {
@@ -108,23 +98,23 @@ export default function SubscriptionScreen() {
 
   const updateSubscriptionStatus = async () => {
     try {
-      const register_no = await SecureStore.getItemAsync("register_no");
+      const registerNo = await SecureStore.getItemAsync("register_no");
 
-      if (!register_no) {
+      if (!registerNo) {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: "Register number not found. Please login again.",
+          text1: t("error"),
+          text2: t("register_number_not_found"),
           position: "bottom",
         });
-        router.replace("/login");
+        router.replace("/(auth)/login");
         return;
       }
 
-      const res = await loginUser(register_no);
+      const res = await loginUser(registerNo);
 
       if (res?.user) {
-        await SecureStore.setItemAsync("register_no", String(register_no));
+        await SecureStore.setItemAsync("register_no", String(registerNo));
         await SecureStore.setItemAsync("studentId", String(res.user.id));
 
         if (res.user.subscription) {
@@ -132,26 +122,24 @@ export default function SubscriptionScreen() {
         } else {
           Toast.show({
             type: "error",
-            text1: "Error",
-            text2: "Subscription not activated. Please contact support.",
+            text1: t("error"),
+            text2: t("subscription_not_activated"),
             position: "bottom",
           });
         }
       } else {
         Toast.show({
           type: "error",
-          text1: "Error",
-          text2: res?.message || "Failed to verify subscription status",
+          text1: t("error"),
+          text2: res?.message || t("failed_verify_subscription"),
           position: "bottom",
         });
       }
     } catch (error) {
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2:
-          (error)?.response?.data?.message ||
-          "Failed to verify subscription status. Please contact support.",
+        text1: t("error"),
+        text2: error?.response?.data?.message || t("failed_verify_support"),
         position: "bottom",
       });
     }
@@ -162,17 +150,15 @@ export default function SubscriptionScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.popup}>
-        <Text style={styles.title}>Subscription Required</Text>
-        <Text style={styles.subtitle}>
-          To continue using this app, you need to activate a yearly subscription.
-        </Text>
+        <Text style={styles.title}>{t("subscription_required")}</Text>
+        <Text style={styles.subtitle}>{t("subscription_hint")}</Text>
 
         <View style={styles.priceBox}>
           {isLoading ? (
             <ActivityIndicator />
           ) : (
             <Text style={canPay ? styles.priceText : styles.priceTextInactive}>
-              ₹{amountNumber} / Year
+              ₹{amountNumber} {t("per_year")}
             </Text>
           )}
         </View>
@@ -185,12 +171,12 @@ export default function SubscriptionScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Subscribe Now</Text>
+            <Text style={styles.buttonText}>{t("subscribe_now")}</Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.replace("/login")}>
-          <Text style={styles.skipText}>Maybe Later</Text>
+        <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
+          <Text style={styles.skipText}>{t("maybe_later")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

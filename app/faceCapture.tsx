@@ -1,4 +1,5 @@
 import axios, { AxiosError } from "axios";
+import { useI18n } from "@/i18n/I18nProvider";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useRef, useState } from "react";
@@ -27,6 +28,7 @@ const REQUIRED_STABLE_FRAMES = 3;
 /* ==================================== */
 
 export default function FaceCapture() {
+  const { t } = useI18n();
   const device = useCameraDevice("front");
   const { hasPermission, requestPermission } = useCameraPermission();
   const { mode = "login" } = useLocalSearchParams();
@@ -34,7 +36,7 @@ export default function FaceCapture() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [guideMessage, setGuideMessage] = useState(
-    "Place your face inside the oval"
+    t("place_face_inside_oval")
   );
 
   const cameraRef = useRef<Camera>(null);
@@ -48,12 +50,12 @@ export default function FaceCapture() {
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
-        Alert.alert("Permission Required", "Camera access is needed");
+        Alert.alert(t("permission_required"), t("camera_access_needed"));
         return;
       }
     }
     stableCountRef.current = 0;
-    setGuideMessage("Align your face properly");
+    setGuideMessage(t("align_face_properly"));
     setIsCameraActive(true);
   };
 
@@ -72,8 +74,8 @@ export default function FaceCapture() {
           stableCountRef.current = 0;
           setGuideMessage(
             faces.length === 0
-              ? "No face detected"
-              : "Only one face allowed"
+              ? t("no_face_detected")
+              : t("only_one_face_allowed")
           );
           return;
         }
@@ -95,25 +97,25 @@ export default function FaceCapture() {
         /* === VALIDATION === */
         if (Math.abs(faceRatio - TARGET_FACE_RATIO) > FACE_RATIO_TOLERANCE) {
           stableCountRef.current = 0;
-          setGuideMessage("Move closer or farther to fit the oval");
+          setGuideMessage(t("move_closer_or_farther"));
           return;
         }
 
         if (centerOffset > CENTER_TOLERANCE) {
           stableCountRef.current = 0;
-          setGuideMessage("Center your face inside the oval");
+          setGuideMessage(t("center_face_inside_oval"));
           return;
         }
 
         if (yaw > MAX_YAW || pitch > MAX_PITCH) {
           stableCountRef.current = 0;
-          setGuideMessage("Look straight at the camera");
+          setGuideMessage(t("look_straight_camera"));
           return;
         }
 
         /* === STABLE FRAME === */
         stableCountRef.current += 1;
-        setGuideMessage("Perfect! Hold still...");
+        setGuideMessage(t("perfect_hold_still"));
 
         if (stableCountRef.current >= REQUIRED_STABLE_FRAMES) {
           clearInterval(intervalRef.current!);
@@ -140,7 +142,7 @@ export default function FaceCapture() {
       const baseUrl = await SecureStore.getItemAsync("baseUrl");
 
       if (!baseUrl) {
-        Alert.alert("Error", "Missing configuration");
+        Alert.alert(t("error"), t("missing_configuration"));
         return;
       }
 
@@ -166,8 +168,8 @@ export default function FaceCapture() {
         if (mode === "register") {
           Toast.show({
             type: "success",
-            text1: "Success",
-            text2: data.success || "Face registered successfully.",
+            text1: t("success"),
+            text2: data.success || t("face_registered_successfully"),
             position: "bottom",
           });
           router.replace("/profile");
@@ -183,7 +185,7 @@ export default function FaceCapture() {
 
           Toast.show({
             type: "success",
-            text1: "Login Successful",
+            text1: t("login_successful"),
             position: "bottom"
           });
 
@@ -196,7 +198,7 @@ export default function FaceCapture() {
       } else {
         Toast.show({
           type: "error",
-          text1: data.message || "Face look like not in right position try again",
+          text1: data.message || t("face_position_retry"),
           position: "bottom"
         })
         startCamera();
@@ -204,11 +206,11 @@ export default function FaceCapture() {
     } catch (error) {
        const err = error as AxiosError<any>;
       const message =
-        err?.response?.data?.message || "Server error, try again";
+        err?.response?.data?.message || t("server_error_try_again");
 
       Toast.show({
         type: "error",
-        text1: "Error",
+        text1: t("error"),
         text2: message,
         position: "bottom",
       });
@@ -225,10 +227,10 @@ export default function FaceCapture() {
       {!isCameraActive && !loading && (
         <View style={styles.center}>
           <Text style={styles.title}>
-            {mode === "register" ? "Register Face ID" : "Face Login"}
+            {mode === "register" ? t("register_face_id") : t("face_login")}
           </Text>
           <TouchableOpacity onPress={startCamera} style={styles.button}>
-            <Text style={styles.buttonText}>Start Camera</Text>
+            <Text style={styles.buttonText}>{t("start_camera")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -251,7 +253,7 @@ export default function FaceCapture() {
 
       {loading && (
         <View style={styles.center}>
-          <Text style={styles.title}>Uploading...</Text>
+          <Text style={styles.title}>{t("uploading")}</Text>
         </View>
       )}
     </View>

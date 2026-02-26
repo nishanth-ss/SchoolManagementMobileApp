@@ -1,3 +1,4 @@
+import { useI18n } from "@/i18n/I18nProvider";
 import { loginWithOtp } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -6,12 +7,13 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-nativ
 import Toast from "react-native-toast-message";
 
 export default function OtpScreen() {
+  const { t } = useI18n();
   const [otp, setOtp] = useState(["", "", "", ""]);
   const inputs = useRef<TextInput[]>([]);
-  const [register_no, setRegisterNo] = useState<string | null>(null);
+  const [registerNo, setRegisterNo] = useState<string | null>(null);
   const router = useRouter();
 
-   useEffect(() => {
+  useEffect(() => {
     const loadRegisterNo = async () => {
       const regNo = await SecureStore.getItemAsync("register_no");
       setRegisterNo(regNo);
@@ -19,14 +21,11 @@ export default function OtpScreen() {
     loadRegisterNo();
   }, []);
 
-
   const handleChange = (text: string, index: number) => {
-    // Update OTP value
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
 
-    // Auto move to next input
     if (text && index < 3) {
       inputs.current[index + 1]?.focus();
     }
@@ -38,38 +37,38 @@ export default function OtpScreen() {
     }
   };
 
- const handleVerifyOtp = async () => {
-  const enteredOtp = otp.join("");
-  const res = await loginWithOtp(register_no || "", enteredOtp);
+  const handleVerifyOtp = async () => {
+    const enteredOtp = otp.join("");
+    const res = await loginWithOtp(registerNo || "", enteredOtp);
 
-  if (res?.user) {
-    await SecureStore.setItemAsync("authToken", res.token);
-    await SecureStore.setItemAsync("register_no", register_no || "");
-    await SecureStore.setItemAsync("studentId", res?.user?.id);
-    await SecureStore.setItemAsync("subscription", res.user.subscription ? "true" : "false");
+    if (res?.user) {
+      await SecureStore.setItemAsync("authToken", res.token);
+      await SecureStore.setItemAsync("register_no", registerNo || "");
+      await SecureStore.setItemAsync("studentId", res?.user?.id);
+      await SecureStore.setItemAsync("subscription", res.user.subscription ? "true" : "false");
 
-    if (res.user.subscription) {
-      router.replace("/(tabs)/profile");
-    } else {
-      router.replace("/subscription");
+      if (res.user.subscription) {
+        router.replace("/(tabs)/profile");
+      } else {
+        router.replace("/subscription");
+      }
+      return;
     }
-  } else {
+
     Toast.show({
       type: "error",
-      text1: res?.message,
-      text2: "Login Failed",
+      text1: t("login_failed"),
+      text2: res?.message || t("something_wrong_try_later"),
     });
-  }
-};
-
+  };
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.innerContainer}>
-        <Text style={styles.title}>Enter OTP</Text>
-        <Text style={styles.subtitle}>We’ve sent a 4-digit code to your email or phone</Text>
+        <Text style={styles.title}>{t("enter_otp")}</Text>
+        <Text style={styles.subtitle}>{t("otp_sent_hint")}</Text>
 
         <View style={styles.otpContainer}>
           {otp.map((digit, index) => (
@@ -89,11 +88,11 @@ export default function OtpScreen() {
         </View>
 
         <TouchableOpacity style={styles.button} onPress={handleVerifyOtp}>
-          <Text style={styles.buttonText}>Verify OTP</Text>
+          <Text style={styles.buttonText}>{t("verify_otp")}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.btnlogin} onPress={() => router.replace("/login")}>
-          <Text style={styles.buttonTextLogin}>Back to Login</Text>
+        <TouchableOpacity style={styles.btnlogin} onPress={() => router.replace("/(auth)/login")}>
+          <Text style={styles.buttonTextLogin}>{t("back_to_login")}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -139,7 +138,7 @@ const styles = StyleSheet.create({
     height: 55,
     textAlign: "center",
     fontSize: 22,
-    marginRight: 10
+    marginRight: 10,
   },
   button: {
     width: "100%",
@@ -154,7 +153,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  btnlogin:{
+  btnlogin: {
     marginTop: 20,
     color: "#40407a",
     fontSize: 16,
@@ -167,10 +166,10 @@ const styles = StyleSheet.create({
     width: "100%",
     padding: 10,
   },
-  buttonTextLogin:{
+  buttonTextLogin: {
     color: "#40407a",
     fontSize: 16,
     fontWeight: "600",
-    textAlign: "center",    
-  }
+    textAlign: "center",
+  },
 });

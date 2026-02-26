@@ -1,14 +1,17 @@
 // app/(tabs)/_layout.tsx
+import LanguagePicker from "@/components/LanguagePicker";
+import { useI18n } from "@/i18n/I18nProvider";
 import { Tabs, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { CreditCard, History, LogOut, User } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, TouchableOpacity } from "react-native";
+import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useI18n();
 
   const [loading, setLoading] = useState(true);
 
@@ -19,12 +22,12 @@ useEffect(() => {
       const regNo = await SecureStore.getItemAsync("register_no");
 
       if (!token || !regNo) {
-        router.replace({ pathname: "/login" });
+        router.replace({ pathname: "/(auth)/login" });
         return;
       }
 
     } catch (error) {
-      router.replace({ pathname: "/login" });
+      router.replace({ pathname: "/(auth)/login" });
     } finally {
       setLoading(false);
     }
@@ -39,7 +42,7 @@ const handleLogout = async () => {
   await SecureStore.deleteItemAsync("studentId");
   await SecureStore.deleteItemAsync("subscription");
   await SecureStore.deleteItemAsync("baseUrl");
-  router.replace({ pathname: "/login" });
+  router.replace({ pathname: "/(auth)/login" });
 };
 
 
@@ -68,19 +71,21 @@ const handleLogout = async () => {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: t("tab_profile"),
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
           headerStyle: { backgroundColor: "#40407a" },
           headerTitleStyle: { color: "#fff" },
           headerRight: () => (
-            <TouchableOpacity
-              onPress={() => {
-                handleLogout();
-              }}
-              style={{ marginRight: 15 }}
-            >
-              <LogOut color="#fff" size={22} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginRight: 15 }}>
+              <LanguagePicker compact />
+              <TouchableOpacity
+                onPress={() => {
+                  handleLogout();
+                }}
+              >
+                <LogOut color="#fff" size={22} />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -88,7 +93,7 @@ const handleLogout = async () => {
       <Tabs.Screen
         name="transaction"
         options={{
-          title: "Transaction",
+          title: t("tab_transaction"),
           tabBarIcon: ({ color, size }) => <History color={color} size={size} />,
           headerStyle: { backgroundColor: "#40407a" },
           headerTitleStyle: { color: "#fff" },
@@ -98,7 +103,7 @@ const handleLogout = async () => {
       <Tabs.Screen
         name="payment"
         options={{
-          title: "Payment",
+          title: t("tab_payment"),
           tabBarIcon: ({ color, size }) => <CreditCard color={color} size={size} />,
           headerStyle: { backgroundColor: "#40407a" },
           headerTitleStyle: { color: "#fff" },
