@@ -1,19 +1,25 @@
-// app/(tabs)/subscription.tsx  (or wherever you keep it)
+// app/(tabs)/subscription.tsx
 import { useRazorpay } from "@/hooks/useRazorpay";
 import { loginUser } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 export default function SubscriptionScreen() {
   const router = useRouter();
   const { startPayment } = useRazorpay();
+
   const [loading, setLoading] = useState(false);
   const [subscriptionAmount, setSubscriptionAmount] = useState(null);
-  const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -22,26 +28,63 @@ export default function SubscriptionScreen() {
         const amount = await SecureStore.getItemAsync("subscriptionAmount");
         setSubscriptionAmount(amount);
       } catch (err) {
-        console.error('Error loading subscription amount:', err);
-        setError('Failed to load subscription amount');
+        console.error("Error loading subscription amount:", err);
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Failed to load subscription amount",
+          position: "bottom",
+        });
       } finally {
         setIsLoading(false);
       }
     };
+
     loadSubscriptionAmount();
   }, []);
 
-  const handleSubscribe = async () => {
-    setLoading(true);
-    try {
-      const studentId = await SecureStore.getItem("studentId");
-      const amount = subscriptionAmount;
+  // ✅ make sure amount is valid number
+  const amountNumber = useMemo(() => {
+    const raw = subscriptionAmount;
 
-      const ok = await startPayment(studentId, amount, true);
-      setLoading(false);
+    if (!raw) return 0;
+    if (raw === "undefined" || raw === "null") return 0;
+
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }, [subscriptionAmount]);
+
+  const canPay = amountNumber > 0;
+
+  const handleSubscribe = async () => {
+    try {
+      setLoading(true);
+
+      const studentId = await SecureStore.getItemAsync("studentId");
+      if (!studentId) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Student ID not found. Please login again.",
+          position: "bottom",
+        });
+        router.replace("/login");
+        return;
+      }
+
+      if (!canPay) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Subscription amount not available.",
+          position: "bottom",
+        });
+        return;
+      }
+
+      const ok = await startPayment(studentId, (amountNumber), true);
 
       if (ok) {
-        // Payment was successful, update user's subscription status
         await updateSubscriptionStatus();
       } else {
         Toast.show({
@@ -52,30 +95,41 @@ export default function SubscriptionScreen() {
         });
       }
     } catch (error) {
-      setLoading(false);
       Toast.show({
         type: "error",
         text1: "Error",
         text2: "An error occurred during payment. Please try again.",
         position: "bottom",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   const updateSubscriptionStatus = async () => {
     try {
-      const register_no = await SecureStore.getItem("register_no");
+      const register_no = await SecureStore.getItemAsync("register_no");
+
+      if (!register_no) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Register number not found. Please login again.",
+          position: "bottom",
+        });
+        router.replace("/login");
+        return;
+      }
+
       const res = await loginUser(register_no);
 
       if (res?.user) {
-        await SecureStore.setItem("register_no", register_no);
-        await SecureStore.setItem("studentId", res.user.id);
+        await SecureStore.setItemAsync("register_no", String(register_no));
+        await SecureStore.setItemAsync("studentId", String(res.user.id));
 
         if (res.user.subscription) {
-          // If subscription is now true, go to OTP
           router.replace("/otp");
         } else {
-          // This shouldn't happen if payment was successful
           Toast.show({
             type: "error",
             text1: "Error",
@@ -84,13 +138,20 @@ export default function SubscriptionScreen() {
           });
         }
       } else {
-        throw new Error("Failed to verify subscription status");
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: res?.message || "Failed to verify subscription status",
+          position: "bottom",
+        });
       }
     } catch (error) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Failed to verify subscription status. Please check your account or contact support.",
+        text2:
+          (error)?.response?.data?.message ||
+          "Failed to verify subscription status. Please contact support.",
         position: "bottom",
       });
     }
@@ -99,6 +160,7 @@ export default function SubscriptionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+
       <View style={styles.popup}>
         <Text style={styles.title}>Subscription Required</Text>
         <Text style={styles.subtitle}>
@@ -106,13 +168,19 @@ export default function SubscriptionScreen() {
         </Text>
 
         <View style={styles.priceBox}>
-          <Text style={subscriptionAmount ? styles.priceText : priceTextInactive}>₹{subscriptionAmount || 0} / Year</Text>
+          {isLoading ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={canPay ? styles.priceText : styles.priceTextInactive}>
+              ₹{amountNumber} / Year
+            </Text>
+          )}
         </View>
 
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
+          style={[styles.button, (loading || !canPay) && styles.buttonDisabled]}
           onPress={handleSubscribe}
-          disabled={loading || !subscriptionAmount}
+          disabled={loading || !canPay}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -166,16 +234,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     marginBottom: 20,
+    minWidth: 180,
+    alignItems: "center",
   },
   priceText: {
     fontSize: 18,
     fontWeight: "600",
     color: "#40407a",
   },
-   priceTextInactive: {
+  priceTextInactive: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#fff",
+    color: "#6b7280",
   },
   button: {
     backgroundColor: "#40407a",
@@ -183,6 +253,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     borderRadius: 10,
     marginBottom: 10,
+    width: "100%",
+    alignItems: "center",
   },
   buttonText: {
     color: "#fff",

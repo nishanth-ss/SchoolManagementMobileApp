@@ -1,63 +1,80 @@
 import { loadBaseUrl, setBaseUrl } from "@/api/apiConfig";
 import { loginUser, searchLocation } from "@/services/authService";
 import { Stack, useRouter } from "expo-router";
-import * as SecureStore from 'expo-secure-store';
-import { useCallback, useEffect, useState } from "react";
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import * as SecureStore from "expo-secure-store";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Toast from "react-native-toast-message";
 
-const debounce = <F extends (...args: any[]) => any>(func: F, delay: number) => {
+type School = {
+  _id: string;
+  name: string;
+  location: string;
+  baseUrl: string;
+  amount: number;
+};
+
+function debounce<F extends (...args: any[]) => any>(func: F, delay: number) {
   let timeout: ReturnType<typeof setTimeout>;
   return (...args: Parameters<F>) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), delay);
   };
-};
+}
 
 export default function LoginScreen() {
+  const router = useRouter();
+
   const [register_no, setRegisterNo] = useState("");
   const [search, setSearch] = useState("");
-  type School = {
-    _id: string;
-    name: string;
-    location: string;
-    baseUrl: string;
-    amount: number;
-    // Add other properties of school object if there are more
-  };
 
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [isSchoolSelected, setIsSchoolSelected] = useState(false);
+
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+
+  // prevent setting state after unmount during debounce
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const initialize = async () => {
       try {
         const savedUrl = await loadBaseUrl();
-        if (savedUrl && savedUrl !== 'https://localhost:5000') {
-          // If we have a saved URL, we can pre-select the school
-          // You might want to fetch the school details here if needed
-        }
+        // optional: you can restore previously selected school based on savedUrl
+        console.log("Saved baseUrl:", savedUrl);
       } catch (error) {
-        console.log('Failed to load base URL:', error);
+        console.log("Failed to load base URL:", error);
       }
     };
     initialize();
   }, []);
 
   const debouncedSearch = useCallback(
-    debounce(async (text) => {
+    debounce(async (text: string) => {
       try {
         const res = await searchLocation(text);
-        if (res?.data?.length) {
-          setSchools(res.data);
-        } else {
-          setSchools([]);
+
+        const list = res?.data ?? res ?? [];
+        if (mountedRef.current) {
+          if (Array.isArray(list) && list.length) setSchools(list);
+          else setSchools([]);
         }
       } catch (err) {
-        setSchools([]);
+        if (mountedRef.current) setSchools([]);
       }
     }, 500),
     []
@@ -65,19 +82,38 @@ export default function LoginScreen() {
 
   const handleSearch = (text: string) => {
     setSearch(text);
-    if (text.length >= 2) {
-      debouncedSearch(text);
+
+    if (text.trim().length >= 2) {
+      debouncedSearch(text.trim());
     } else {
       setSchools([]);
     }
   };
 
   const handleSelectSchool = async (school: School) => {
-    const baseUrl = school.baseUrl.trim();
+    const baseUrl = (school.baseUrl || "").trim();
+
+    if (!baseUrl) {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: "School base URL is missing.",
+        position: "bottom",
+      });
+      return;
+    }
+
     try {
       await setBaseUrl(baseUrl);
       await SecureStore.setItemAsync("baseUrl", baseUrl);
-      await SecureStore.setItemAsync("subscriptionAmount", String(school.amount));
+
+      // ✅ safe store amount
+      const amt = Number(school.amount);
+      await SecureStore.setItemAsync(
+        "subscriptionAmount",
+        String(Number.isFinite(amt) ? amt : 0)
+      );
+
       setSelectedSchool(school);
       setSearch(school.name);
       setSchools([]);
@@ -93,6 +129,8 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    const reg = register_no.trim();
+
     try {
       if (!selectedSchool) {
         Toast.show({
@@ -104,33 +142,66 @@ export default function LoginScreen() {
         return;
       }
 
+      if (!reg) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: "Please enter registration number",
+          position: "bottom",
+        });
+        return;
+      }
+
       setLoading(true);
-      const res = await loginUser(register_no);
 
-      if (res?.user) {
-        await SecureStore.setItemAsync("register_no", register_no);
-        await SecureStore.setItemAsync("studentId", res.user.id);
+      const res = await loginUser(reg);
+      console.log("LOGIN RESPONSE:", JSON.stringify(res, null, 2));
 
-        if (res.user.subscription === false) {
-          router.replace("/subscription");
-        } else {
-          router.replace("/otp");
-        }
-      } else {
-        console.log("res",res);
-        
+      const user = res?.user;
+      if (!user) {
         Toast.show({
           type: "error",
           text1: "Login Failed",
           text2: res?.message || "Invalid credentials or server error",
           position: "bottom",
         });
+        return;
       }
-    } catch (error) {
+
+      // ✅ backend may return id or _id
+      const studentId = user?.id ?? user?._id;
+      if (!studentId) {
+        Toast.show({
+          type: "error",
+          text1: "Login Failed",
+          text2: "Student ID missing in response. Please contact support.",
+          position: "bottom",
+        });
+        return;
+      }
+
+      await SecureStore.setItemAsync("register_no", String(reg));
+      await SecureStore.setItemAsync("studentId", String(studentId));
+
+      // ✅ subscription could be boolean or 0/1 or string
+      const subscribed =
+        user?.subscription === true ||
+        user?.subscription === 1 ||
+        user?.subscription === "true";
+
+      if (!subscribed) {
+        router.replace("/subscription");
+      } else {
+        router.replace("/otp");
+      }
+    } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: "Something went wrong. Please try again later.",
+        text2:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Something went wrong. Please try again later.",
         position: "bottom",
       });
     } finally {
@@ -147,6 +218,7 @@ export default function LoginScreen() {
         {!isSchoolSelected ? (
           <>
             <Text style={styles.subtitle}>Select your school to continue</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Search school name"
@@ -154,6 +226,7 @@ export default function LoginScreen() {
               onChangeText={handleSearch}
               autoCapitalize="words"
             />
+
             {schools.length > 0 ? (
               <FlatList
                 style={styles.schoolsList}
@@ -169,7 +242,7 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 )}
               />
-            ) : search.length >= 2 ? (
+            ) : search.trim().length >= 2 ? (
               <Text style={styles.noResults}>No schools found</Text>
             ) : null}
           </>
@@ -178,11 +251,16 @@ export default function LoginScreen() {
             <View style={styles.selectedSchoolContainer}>
               <Text style={styles.selectedSchoolLabel}>Selected School:</Text>
               <Text style={styles.selectedSchoolName}>{selectedSchool?.name}</Text>
-              <Text style={styles.selectedSchoolLocation}>{selectedSchool?.location}</Text>
+              <Text style={styles.selectedSchoolLocation}>
+                {selectedSchool?.location}
+              </Text>
+
               <TouchableOpacity
                 onPress={() => {
                   setIsSchoolSelected(false);
-                  setSearch('');
+                  setSelectedSchool(null);
+                  setSearch("");
+                  setSchools([]);
                 }}
                 style={styles.changeSchoolButton}
               >
@@ -200,25 +278,14 @@ export default function LoginScreen() {
             />
 
             <TouchableOpacity
-              style={[styles.button, (!register_no || loading) && styles.disabledButton]}
+              style={[styles.button, (!register_no.trim() || loading) && styles.disabledButton]}
               onPress={handleLogin}
-              disabled={!register_no || loading}
+              disabled={!register_no.trim() || loading}
             >
               <Text style={styles.buttonText}>
                 {loading ? "Loading..." : "Login"}
               </Text>
             </TouchableOpacity>
-
-            {/* <View style={{ marginTop: 20, height: 250 }}>
-              <Text style={styles.faceIdInfo}>If you already have a face ID, please login using it</Text>
-              <TouchableOpacity
-                style={styles.faceIdButton}
-                onPress={() => router.push("/faceCapture")}
-              >
-                <ScanFace size={24} color="#40407a" />
-                <Text style={styles.faceIdText}>Face ID to login</Text>
-              </TouchableOpacity>
-            </View> */}
           </>
         )}
       </View>
@@ -231,7 +298,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "#40407a"
+    backgroundColor: "#40407a",
   },
   innerContainer: {
     alignItems: "center",
@@ -249,13 +316,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     marginBottom: 20,
-    color: "#000"
+    color: "#000",
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   input: {
     borderWidth: 1,
@@ -264,7 +331,7 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 10,
     width: "100%",
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -273,64 +340,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   schoolsList: {
-    width: '100%',
+    width: "100%",
     maxHeight: 200,
     marginTop: 10,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
   },
   schoolItem: {
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
   },
   schoolName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: "500",
+    color: "#333",
   },
   schoolLocation: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginTop: 4,
   },
   selectedSchoolContainer: {
-    width: '100%',
+    width: "100%",
     marginBottom: 20,
     padding: 15,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   selectedSchoolLabel: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 5,
   },
   selectedSchoolName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   selectedSchoolLocation: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   changeSchoolButton: {
     marginTop: 10,
     padding: 8,
     borderRadius: 6,
-    backgroundColor: '#e9ecef',
-    alignSelf: 'flex-start',
+    backgroundColor: "#e9ecef",
+    alignSelf: "flex-start",
   },
   changeSchoolText: {
-    color: '#40407a',
+    color: "#40407a",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   button: {
     width: "100%",
@@ -348,39 +415,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-    textAlign: "center"
+    textAlign: "center",
   },
   disabledButton: {
     opacity: 0.6,
   },
   noResults: {
-    textAlign: 'center',
-    color: '#999',
+    textAlign: "center",
+    color: "#999",
     marginTop: 10,
-    fontStyle: 'italic',
+    fontStyle: "italic",
     padding: 15,
-  },
-  faceIdButton: {
-    marginTop: 5,
-    padding: 15,
-    backgroundColor: 'rgba(64, 64, 122, 0.2)',
-    borderRadius: 8,
-    alignItems: 'center',
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    borderColor: '#40407a',
-    borderWidth: 1,
-    marginBottom: 10,
-  },
-  faceIdText: {
-    fontSize: 16,
-    color: '#40407a',
-  },
-  faceIdInfo: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 10,
   },
 });
